@@ -11,7 +11,7 @@ import (
 
 const bullysquad = "67092563995136000"
 
-var auth = concat.Native("Bot ", "")
+var auth = concat.Builder("Bot ", "")
 var discord, err = discordgo.New(auth)
 
 func main() {
