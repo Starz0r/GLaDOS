@@ -12,8 +12,9 @@ import (
 
 var reservednames = []string{"🌻 Green Hill Zone", "🍄 Mushroom Kingdom", "🌳 Vegetable Valley", "👑 Hyrule", "🏰 Wily's Castle", "🌌 Final Destination"}
 var takenlist []string
-var admissionslist map[string]string
-var viplist map[string]string
+var admissionslist = make(map[string]string)
+var viplist = make(map[string]string)
+var passwordlist = make(map[string]string)
 
 func cmdRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// Self Check
@@ -27,31 +28,35 @@ func cmdRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	// TODO: Check if the array is at least correctly sized before assignments
+	//TODO: Add a return to every end of execution to ensure there are no fallthroughs
+
+	//TODO: Make sure the length of argv is 5
 	// Split the command into an array and define them into concrete types
 	argv := strings.Split(m.Content, " ")
 
 	cmd := argv[0]
 	t := argv[1]
 
-	//TODO: Make sure check the limit is valid (2-99 or 0, can't be 1)
-	limit, err := strconv.Atoi(argv[2])
-	if err != nil {
-		return
-	}
-
-	//TODO: Make sure bitrate is valid (32-96)
-	bitrate, err := strconv.Atoi(argv[3])
-	if err != nil {
-		return
-	}
-
-	pwd := argv[4]
-
 	// Check if the parameter matches
 	if cmd == "!rooms" {
 		// Creation of a room
 		if t == "create" {
+
+			// Do the rest of the argv reassignments
+			//TODO: Make sure check the limit is valid (2-99 or 0, can't be 1)
+			limit, err := strconv.Atoi(argv[2])
+			if err != nil {
+				return
+			}
+
+			//TODO: Make sure bitrate is valid (32-96)
+			bitrate, err := strconv.Atoi(argv[3])
+			if err != nil {
+				return
+			}
+
+			pwd := argv[4]
+
 			// Determine which room name gets taken
 			rand.Seed(time.Now().UnixNano())
 			max := len(reservednames)
@@ -131,9 +136,44 @@ func cmdRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 			//TODO: Handle this error by cleaning up if it fails
 			s.ChannelEditComplex(room.ID, settings)
 
+			//TODO: Stop users from picking the same password already in passwordlist
+
 			// If the room edit is sucessful, record IDs
 			admissionslist[room.ID] = admissionident
 			viplist[room.ID] = vipident
+			passwordlist[pwd] = room.ID
+		} else if t == "join" {
+			//TODO: Handle this error
+			dm, _ := discord.Channel(m.ChannelID)
+
+			//TODO: Check if argv length is at least 3 here
+			pwd := argv[2]
+			room := *new(string)
+
+			// If the channel of the message has only one Recipients then
+			// we can be sure that the Channel type is a Direct Message
+			if len(dm.Recipients) == 1 {
+				// Run through the list until we find a matching password
+				for k, v := range passwordlist {
+					if pwd == k {
+						room = v
+						break
+					}
+				}
+
+				// Get access to the room we found a password for
+				if room != "" {
+					s.GuildMemberRoleAdd(bullysquad, m.Author.ID, admissionslist[room])
+					s.ChannelMessageSend(dm.ID, "Looks like you are in! Welcome to the club!")
+					return
+				}
+
+				// If the password didn't match with anything, notify them
+				s.ChannelMessageSend(dm.ID, "The provided password was incorrect, sorry, looks like you aren't getting into Mile High Club today.")
+			} else { // Otherwise let them know this is not the correct way
+				s.ChannelMessageSend(dm.ID, "Sorry, but we can't let you in! For security reasons we only allow rooms with passwords to be joined through Direct Messages with me.")
+				return
+			}
 		}
 	}
 
