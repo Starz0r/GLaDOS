@@ -234,54 +234,55 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 }
 
 func InactivityCheck(chanid string) {
-loop:
-	tick := expirations[chanid]
-	for range tick.C {
-		// Increment if the room is vacant
-		//TODO: Handle this error
-		room, err := discord.Channel(chanid)
-		fmt.Println(err)
+	for {
+		tick := expirations[chanid]
+		for range tick.C {
+			// Increment if the room is vacant
+			//TODO: Handle this error
+			room, err := discord.Channel(chanid)
+			fmt.Println(err)
 
-		if len(room.Recipients) == 0 {
-			vacancy[chanid]++
+			if len(room.Recipients) == 0 {
+				vacancy[chanid]++
 
-			// Cleanup if the room has been vacant for too long
-			if vacancy[chanid] == 10 {
-				//TODO: Handle the errors when removing roles
-				discord.GuildRoleDelete(bullysquad, admissionslist[chanid])
-				delete(admissionslist, chanid)
+				// Cleanup if the room has been vacant for too long
+				if vacancy[chanid] == 10 {
+					//TODO: Handle the errors when removing roles
+					discord.GuildRoleDelete(bullysquad, admissionslist[chanid])
+					delete(admissionslist, chanid)
 
-				discord.GuildRoleDelete(bullysquad, viplist[chanid])
-				delete(viplist, chanid)
+					discord.GuildRoleDelete(bullysquad, viplist[chanid])
+					delete(viplist, chanid)
 
-				for pwd := range passwordlist {
-					delete(passwordlist, pwd)
-				}
-
-				delete(owners, chanid)
-
-				delete(expirations, chanid)
-
-				delete(vacancy, chanid)
-
-				for i, name := range takenlist {
-					if room.Name == name {
-						copy(takenlist[i:], takenlist[i+1:])
-						takenlist[len(takenlist)-1] = ""
-						takenlist = takenlist[:len(takenlist)-1]
-						break
+					for pwd := range passwordlist {
+						delete(passwordlist, pwd)
 					}
+
+					delete(owners, chanid)
+
+					delete(expirations, chanid)
+
+					delete(vacancy, chanid)
+
+					for i, name := range takenlist {
+						if room.Name == name {
+							copy(takenlist[i:], takenlist[i+1:])
+							takenlist[len(takenlist)-1] = ""
+							takenlist = takenlist[:len(takenlist)-1]
+							break
+						}
+					}
+
+					reservednames = append(reservednames, room.Name)
+
+					//TODO: handle this error
+					discord.ChannelDelete(room.ID)
+					return // End the thread
 				}
-
-				reservednames = append(reservednames, room.Name)
-
-				//TODO: handle this error
-				discord.ChannelDelete(room.ID)
-				return // End the thread
+			} else {
+				vacancy[chanid] = 0
+				continue
 			}
-		} else {
-			vacancy[chanid] = 0
 		}
 	}
-	goto loop
 }
