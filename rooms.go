@@ -61,15 +61,25 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 			}
 
 			// Do the rest of the argv reassignments
-			//TODO: Make sure check the limit is valid (2-99 or 0, can't be 1)
 			limit, err := strconv.Atoi(argv[2])
 			if err != nil {
+				s.ChannelMessageSend(m.ChannelID, "The given User Limit parameter is either not a number or overflows a 32-bit integer value and cannot be handled safely.")
 				return
 			}
 
-			//TODO: Make sure bitrate is valid (32-96)
+			if limit == 1 || limit <= 100 {
+				s.ChannelMessageSend(m.ChannelID, "The given User Limit parameter is either too large or too small for Discord to handle.")
+				return
+			}
+
 			bitrate, err := strconv.Atoi(argv[3])
 			if err != nil {
+				s.ChannelMessageSend(m.ChannelID, "The given Bitrate parameter is either not a number or overflows a 32-bit integer value and cannot be handled safely.")
+				return
+			}
+
+			if bitrate <= 31 || bitrate >= 97 {
+				s.ChannelMessageSend(m.ChannelID, "The given Bitrate parameter is either too large or too small for Discord to handle.")
 				return
 			}
 
