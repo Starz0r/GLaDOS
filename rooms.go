@@ -57,6 +57,17 @@ func cmdRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 			pwd := argv[4]
 
+			// If the password isn't none, then the user can't
+			// create a room in public channels
+			dm, _ := discord.Channel(m.ChannelID)
+
+			if pwd != "none" {
+				if len(dm.Recipients) != 1 {
+					s.ChannelMessageSend(m.ChannelID, "Sorry, I can't handle private room creation in a public text channel. If you'd like to make a private room, please Direct Message me with the full details of your request.")
+					return
+				}
+			}
+
 			// Determine which room name gets taken
 			rand.Seed(time.Now().UnixNano())
 			max := len(reservednames)
@@ -142,6 +153,8 @@ func cmdRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 			admissionslist[room.ID] = admissionident
 			viplist[room.ID] = vipident
 			passwordlist[pwd] = room.ID
+
+			s.ChannelMessageSend(m.ChannelID, "Room reservation was successful, enjoy your stay!")
 		} else if t == "join" {
 			//TODO: Handle this error
 			dm, _ := discord.Channel(m.ChannelID)
