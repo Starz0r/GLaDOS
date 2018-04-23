@@ -16,7 +16,7 @@ var discord, err = discordgo.New(auth)
 
 func main() {
 	// Initialize Commands
-	discord.AddHandler(cmdRooms)
+	discord.AddHandler(CommandRooms)
 
 	// Open Websocket Connection
 	discord.Open()

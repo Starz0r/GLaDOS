@@ -15,9 +15,11 @@ var takenlist []string
 var admissionslist = make(map[string]string)
 var viplist = make(map[string]string)
 var passwordlist = make(map[string]string)
-var owners []*discordgo.User
+var owners = make(map[string]*discordgo.User)
+var expirations = make(map[string]*time.Ticker)
+var vacancy = make(map[string]uint8)
 
-func cmdRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
+func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// Self Check
 	u, err := discord.User("@me")
 	if err != nil {
@@ -41,7 +43,9 @@ func cmdRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// Check if the parameter matches
 	if cmd == "!rooms" {
 		// Creation of a room
-		if t == "create" {
+		switch t {
+
+		case "create":
 			// Make sure the author doesn't already own a room
 			for _, usr := range owners {
 				if usr.ID == m.Author.ID {
@@ -96,8 +100,12 @@ func cmdRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 			perms := make([]*discordgo.PermissionOverwrite, 0, 0)
 
 			// This also includes keeping track of important identication
+			// FIXME: Remove admissionident and vipident for their
+			// struct type counterparts
 			admissionident := *new(string)
+			admission := new(discordgo.Role)
 			vipident := *new(string)
+			vip := new(discordgo.Role)
 
 			if pwd == "none" {
 				perms = nil
@@ -112,8 +120,8 @@ func cmdRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 				perms = append(perms, generalperms)
 
 				// Create a new vip role
-				vip, _ := s.GuildRoleCreate(bullysquad)
-				vip, _ = s.GuildRoleEdit(bullysquad, vip.ID, "🎟️ Room Admission - VIP", 0, false, 0, false)
+				vip, _ = s.GuildRoleCreate(bullysquad)
+				vip, _ = s.GuildRoleEdit(bullysquad, vip.ID, "🎟️ VIP", 0, false, 0, false)
 				s.GuildMemberRoleAdd(bullysquad, m.Author.ID, vip.ID)
 
 				// Set the permission bitset for vip role
@@ -126,8 +134,8 @@ func cmdRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 				perms = append(perms, vipperms)
 
 				// Create a new normal role
-				admission, _ := s.GuildRoleCreate(bullysquad)
-				admission, _ = s.GuildRoleEdit(bullysquad, admission.ID, "🎫 Room Admission", 0, false, 0, false)
+				admission, _ = s.GuildRoleCreate(bullysquad)
+				admission, _ = s.GuildRoleEdit(bullysquad, admission.ID, "🎫 RSVP", 0, false, 0, false)
 
 				// Set the permission bitset for admission role
 				admissionperms := new(discordgo.PermissionOverwrite)
@@ -161,10 +169,23 @@ func cmdRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 			admissionslist[room.ID] = admissionident
 			viplist[room.ID] = vipident
 			passwordlist[pwd] = room.ID
-			owners = append(owners, m.Author)
+			owners[room.ID] = m.Author
 
 			s.ChannelMessageSend(m.ChannelID, "Room reservation was successful, enjoy your stay!")
-		} else if t == "join" {
+
+			// Update State Cache
+			guild, _ := s.Guild(bullysquad)
+			discord.State.GuildAdd(guild)
+			discord.State.ChannelAdd(room)
+			discord.State.RoleAdd(bullysquad, admission)
+			discord.State.RoleAdd(bullysquad, vip)
+
+			// Start a new thread for checking inactivity
+			ic := time.NewTicker(time.Second * 2)
+			expirations[room.ID] = ic
+			go InactivityCheck(room.ID)
+
+		case "join":
 			//TODO: Handle this error
 			dm, _ := discord.Channel(m.ChannelID)
 
@@ -196,7 +217,60 @@ func cmdRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 				s.ChannelMessageSend(dm.ID, "Sorry, but we can't let you in! For security reasons we only allow rooms with passwords to be joined through Direct Messages with me.")
 				return
 			}
+
 		}
 	}
+}
 
+func InactivityCheck(chanid string) {
+loop:
+	tick := expirations[chanid]
+	for range tick.C {
+		// Increment if the room is vacant
+		//TODO: Handle this error
+		room, err := discord.Channel(chanid)
+		fmt.Println(err)
+
+		if len(room.Recipients) == 0 {
+			vacancy[chanid]++
+
+			// Cleanup if the room has been vacant for too long
+			if vacancy[chanid] == 10 {
+				//TODO: Handle the errors when removing roles
+				discord.GuildRoleDelete(bullysquad, admissionslist[chanid])
+				delete(admissionslist, chanid)
+
+				discord.GuildRoleDelete(bullysquad, viplist[chanid])
+				delete(viplist, chanid)
+
+				for pwd := range passwordlist {
+					delete(passwordlist, pwd)
+				}
+
+				delete(owners, chanid)
+
+				delete(expirations, chanid)
+
+				delete(vacancy, chanid)
+
+				for i, name := range takenlist {
+					if room.Name == name {
+						copy(takenlist[i:], takenlist[i+1:])
+						takenlist[len(takenlist)-1] = ""
+						takenlist = takenlist[:len(takenlist)-1]
+						break
+					}
+				}
+
+				reservednames = append(reservednames, room.Name)
+
+				//TODO: handle this error
+				discord.ChannelDelete(room.ID)
+				return // End the thread
+			}
+		} else {
+			vacancy[chanid] = 0
+		}
+	}
+	goto loop
 }
