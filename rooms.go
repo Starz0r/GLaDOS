@@ -46,6 +46,12 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 		switch t {
 
 		case "create":
+			// Make sure a room there are rooms left to giveaway
+			if len(takenlist) == 6 {
+				s.ChannelMessageSend(m.ChannelID, "Whoops looks like we are all out of rooms to giveaway! Sorry for the inconvenience! :sweat:")
+				return
+			}
+
 			// Make sure the author doesn't already own a room
 			for _, usr := range owners {
 				if usr.ID == m.Author.ID {
