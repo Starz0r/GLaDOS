@@ -15,6 +15,7 @@ var takenlist []string
 var admissionslist = make(map[string]string)
 var viplist = make(map[string]string)
 var passwordlist = make(map[string]string)
+var owners []*discordgo.User
 
 func cmdRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// Self Check
@@ -41,6 +42,13 @@ func cmdRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if cmd == "!rooms" {
 		// Creation of a room
 		if t == "create" {
+			// Make sure the author doesn't already own a room
+			for _, usr := range owners {
+				if usr.ID == m.Author.ID {
+					s.ChannelMessageSend(m.ChannelID, "Due to anti-monopoly laws, we can't allow you to claim ownership of more than 1 room at a time. We may live in a capitalist society, but that doesn't mean we don't have rules!")
+					return
+				}
+			}
 
 			// Do the rest of the argv reassignments
 			//TODO: Make sure check the limit is valid (2-99 or 0, can't be 1)
@@ -153,6 +161,7 @@ func cmdRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 			admissionslist[room.ID] = admissionident
 			viplist[room.ID] = vipident
 			passwordlist[pwd] = room.ID
+			owners = append(owners, m.Author)
 
 			s.ChannelMessageSend(m.ChannelID, "Room reservation was successful, enjoy your stay!")
 		} else if t == "join" {
