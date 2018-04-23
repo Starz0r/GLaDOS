@@ -80,6 +80,17 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 				}
 			}
 
+			// Check if the password isn't already used
+			// This is really dumb that I have to check this,
+			// but because of how Discord works, there is
+			// literally no way around this
+			for _, p := range passwordlist {
+				if pwd == p {
+					s.ChannelMessageSend(m.ChannelID, "Looks like that password is already in use! Try not to tell anyone else...")
+					return
+				}
+			}
+
 			// Determine which room name gets taken
 			rand.Seed(time.Now().UnixNano())
 			max := len(reservednames)
