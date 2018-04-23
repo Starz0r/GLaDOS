@@ -31,9 +31,6 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	//TODO: Add a return to every end of execution to ensure there are no fallthroughs
-
-	//TODO: Make sure the length of argv is 5
 	// Split the command into an array and define them into concrete types
 	argv := strings.Split(m.Content, " ")
 
@@ -46,6 +43,11 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 		switch t {
 
 		case "create":
+			if len(argv) != 5 {
+				s.ChannelMessageSend(m.ChannelID, "Either too little or too many arguments given for reserving a room.")
+				return
+			}
+
 			// Make sure a room there are rooms left to giveaway
 			if len(takenlist) == 6 {
 				s.ChannelMessageSend(m.ChannelID, "Whoops looks like we are all out of rooms to giveaway! Sorry for the inconvenience! :sweat:")
@@ -87,7 +89,11 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 			// If the password isn't none, then the user can't
 			// create a room in public channels
-			dm, _ := discord.Channel(m.ChannelID)
+			dm, err := discord.Channel(m.ChannelID)
+			if err != nil {
+				s.ChannelMessageSend(m.ChannelID, ":rotating_light: An unexpected error has occurred, and we cannot complete your request as promised. :rotating_light:")
+				return
+			}
 
 			if pwd != "none" {
 				if len(dm.Recipients) != 1 {
@@ -114,8 +120,11 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 			rng := rand.Intn(max-min) + min
 
 			// Take the room and remove it from the reserved list
-			//TODO: Handle this error
-			room, _ := s.GuildChannelCreate(bullysquad, reservednames[rng], discordgo.ChannelTypeGuildVoice)
+			room, err := s.GuildChannelCreate(bullysquad, reservednames[rng], discordgo.ChannelTypeGuildVoice)
+			if err != nil {
+				s.ChannelMessageSend(m.ChannelID, ":rotating_light: An unexpected error has occurred, and we cannot complete your request as promised. :rotating_light:")
+				return
+			}
 			takenlist = append(takenlist, reservednames[rng])
 			copy(reservednames[rng:], reservednames[(rng+1):])
 			for k, n := len(reservednames)-(rng+1)+rng, len(reservednames); k < n; k++ {
@@ -129,9 +138,7 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 			// This also includes keeping track of important identication
 			// FIXME: Remove admissionident and vipident for their
 			// struct type counterparts
-			admissionident := *new(string)
 			admission := new(discordgo.Role)
-			vipident := *new(string)
 			vip := new(discordgo.Role)
 
 			if pwd == "none" {
@@ -147,9 +154,27 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 				perms = append(perms, generalperms)
 
 				// Create a new vip role
-				vip, _ = s.GuildRoleCreate(bullysquad)
-				vip, _ = s.GuildRoleEdit(bullysquad, vip.ID, "🎟️ VIP", 0, false, 0, false)
-				s.GuildMemberRoleAdd(bullysquad, m.Author.ID, vip.ID)
+				vip, err = s.GuildRoleCreate(bullysquad)
+				if err != nil {
+					s.GuildRoleDelete(bullysquad, vip.ID)
+					s.ChannelDelete(room.ID)
+					s.ChannelMessageSend(m.ChannelID, ":rotating_light: An unexpected error has occurred, and we cannot complete your request as promised. :rotating_light:")
+					return
+				}
+				vip, err = s.GuildRoleEdit(bullysquad, vip.ID, "🎟️ VIP", 0, false, 0, false)
+				if err != nil {
+					s.GuildRoleDelete(bullysquad, vip.ID)
+					s.ChannelDelete(room.ID)
+					s.ChannelMessageSend(m.ChannelID, ":rotating_light: An unexpected error has occurred, and we cannot complete your request as promised. :rotating_light:")
+					return
+				}
+				err = s.GuildMemberRoleAdd(bullysquad, m.Author.ID, vip.ID)
+				if err != nil {
+					s.GuildRoleDelete(bullysquad, vip.ID)
+					s.ChannelDelete(room.ID)
+					s.ChannelMessageSend(m.ChannelID, ":rotating_light: An unexpected error has occurred, and we cannot complete your request as promised. :rotating_light:")
+					return
+				}
 
 				// Set the permission bitset for vip role
 				vipperms := new(discordgo.PermissionOverwrite)
@@ -161,8 +186,22 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 				perms = append(perms, vipperms)
 
 				// Create a new normal role
-				admission, _ = s.GuildRoleCreate(bullysquad)
-				admission, _ = s.GuildRoleEdit(bullysquad, admission.ID, "🎫 RSVP", 0, false, 0, false)
+				admission, err = s.GuildRoleCreate(bullysquad)
+				if err != nil {
+					s.GuildRoleDelete(bullysquad, vip.ID)
+					s.GuildRoleDelete(bullysquad, admission.ID)
+					s.ChannelDelete(room.ID)
+					s.ChannelMessageSend(m.ChannelID, ":rotating_light: An unexpected error has occurred, and we cannot complete your request as promised. :rotating_light:")
+					return
+				}
+				admission, err = s.GuildRoleEdit(bullysquad, admission.ID, "🎫 RSVP", 0, false, 0, false)
+				if err != nil {
+					s.GuildRoleDelete(bullysquad, vip.ID)
+					s.GuildRoleDelete(bullysquad, admission.ID)
+					s.ChannelDelete(room.ID)
+					s.ChannelMessageSend(m.ChannelID, ":rotating_light: An unexpected error has occurred, and we cannot complete your request as promised. :rotating_light:")
+					return
+				}
 
 				// Set the permission bitset for admission role
 				admissionperms := new(discordgo.PermissionOverwrite)
@@ -172,10 +211,6 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 				admissionperms.Deny = 0
 
 				perms = append(perms, admissionperms)
-
-				// Bookkeep important identification
-				admissionident = admission.ID
-				vipident = vip.ID
 			}
 
 			// Edit the room with the correct parameters
@@ -187,25 +222,23 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 			if perms != nil {
 				settings.PermissionOverwrites = perms
 			}
-			//TODO: Handle this error by cleaning up if it fails
-			s.ChannelEditComplex(room.ID, settings)
 
-			//TODO: Stop users from picking the same password already in passwordlist
+			room, err = s.ChannelEditComplex(room.ID, settings)
+			if err != nil {
+				s.GuildRoleDelete(bullysquad, vip.ID)
+				s.GuildRoleDelete(bullysquad, admission.ID)
+				s.ChannelDelete(room.ID)
+				s.ChannelMessageSend(m.ChannelID, ":rotating_light: An unexpected error has occurred, and we cannot complete your request as promised. :rotating_light:")
+				return
+			}
 
 			// If the room edit is sucessful, record IDs
-			admissionslist[room.ID] = admissionident
-			viplist[room.ID] = vipident
+			admissionslist[room.ID] = admission.ID
+			viplist[room.ID] = vip.ID
 			passwordlist[pwd] = room.ID
 			owners[room.ID] = m.Author
 
 			s.ChannelMessageSend(m.ChannelID, "Room reservation was successful, enjoy your stay!")
-
-			// Update State Cache
-			guild, _ := s.Guild(bullysquad)
-			discord.State.GuildAdd(guild)
-			discord.State.ChannelAdd(room)
-			discord.State.RoleAdd(bullysquad, admission)
-			discord.State.RoleAdd(bullysquad, vip)
 
 			// Start a new thread for checking inactivity
 			ic := time.NewTicker(time.Second * 30)
@@ -213,10 +246,17 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 			go InactivityCheck(room.ID)
 
 		case "join":
-			//TODO: Handle this error
-			dm, _ := discord.Channel(m.ChannelID)
+			if len(argv) != 3 {
+				s.ChannelMessageSend(m.ChannelID, "Either too little or too many arguments given for joining a room.")
+				return
+			}
 
-			//TODO: Check if argv length is at least 3 here
+			dm, err := discord.Channel(m.ChannelID)
+			if err != nil {
+				s.ChannelMessageSend(m.ChannelID, ":rotating_light: An unexpected error has occurred, and we cannot complete your request as promised. :rotating_light:")
+				return
+			}
+
 			pwd := argv[2]
 			room := *new(string)
 
@@ -233,7 +273,13 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 				// Get access to the room we found a password for
 				if room != "" {
-					s.GuildMemberRoleAdd(bullysquad, m.Author.ID, admissionslist[room])
+
+					err = s.GuildMemberRoleAdd(bullysquad, m.Author.ID, admissionslist[room])
+					if err != nil {
+						s.ChannelMessageSend(m.ChannelID, ":rotating_light: An unexpected error has occurred, and we cannot complete your request as promised. :rotating_light:")
+						return
+					}
+
 					s.ChannelMessageSend(dm.ID, "Looks like you are in! Welcome to the club!")
 					return
 				}
@@ -254,16 +300,13 @@ func InactivityCheck(chanid string) {
 		tick := expirations[chanid]
 		for range tick.C {
 			// Increment if the room is vacant
-			//TODO: Handle this error
-			room, err := discord.Channel(chanid)
-			fmt.Println(err)
+			room, _ := discord.Channel(chanid)
 
 			if len(room.Recipients) == 0 {
 				vacancy[chanid]++
 
 				// Cleanup if the room has been vacant for too long
 				if vacancy[chanid] == 10 {
-					//TODO: Handle the errors when removing roles
 					discord.GuildRoleDelete(bullysquad, admissionslist[chanid])
 					delete(admissionslist, chanid)
 
@@ -291,7 +334,6 @@ func InactivityCheck(chanid string) {
 
 					reservednames = append(reservednames, room.Name)
 
-					//TODO: handle this error
 					discord.ChannelDelete(room.ID)
 					return // End the thread
 				}
