@@ -181,7 +181,7 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 			discord.State.RoleAdd(bullysquad, vip)
 
 			// Start a new thread for checking inactivity
-			ic := time.NewTicker(time.Second * 2)
+			ic := time.NewTicker(time.Second * 30)
 			expirations[room.ID] = ic
 			go InactivityCheck(room.ID)
 
