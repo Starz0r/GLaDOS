@@ -103,6 +103,10 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 					s.ChannelMessageSend(m.ChannelID, "Sorry, I can't handle private room creation in a public text channel. If you'd like to make a private room, please Direct Message me with the full details of your request.")
 					return
 				}
+			} else {
+				//TODO: remove the else chain when we can have public rooms back
+				s.ChannelMessageSend(m.ChannelID, "Public room creation is currently disabled.")
+				return
 			}
 
 			// Check if the password isn't already used
