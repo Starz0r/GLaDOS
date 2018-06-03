@@ -328,6 +328,17 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 				return
 			}
 
+		case "delete":
+			// Instead of copying code, we are just going to force the room
+			// to get deleted via InactivityCheck()
+			for k, v := range owners {
+				if v.ID == m.Author.ID {
+					vacancy[k] = 10
+					s.ChannelMessageSend(m.ChannelID, "Room has been queued and pending for removal. Come back soon!")
+					return
+				}
+			}
+
 		}
 	}
 }
@@ -343,7 +354,7 @@ func InactivityCheck(chanid string) {
 				vacancy[chanid]++
 
 				// Cleanup if the room has been vacant for too long
-				if vacancy[chanid] == 10 {
+				if vacancy[chanid] >= 10 {
 					discord.GuildRoleDelete(bullysquad, admissionslist[chanid])
 					delete(admissionslist, chanid)
 
