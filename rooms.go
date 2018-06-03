@@ -293,6 +293,13 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 					}
 
 					for _, v := range member.Roles {
+						if v == viplist[room] {
+							s.ChannelMessageSend(m.ChannelID, "You already have ownership of the room, no need for a regular pass.")
+							return
+						}
+					}
+
+					for _, v := range member.Roles {
 						if v == admissionslist[room] {
 							s.ChannelMessageSend(m.ChannelID, "Looks like you are already in this room, did you mean to join another?")
 							return
