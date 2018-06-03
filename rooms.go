@@ -10,6 +10,9 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+const catrooms = "452755413465825280"
+const botrole = "188085355352686602"
+
 var reservednames = []string{"🌻 Green Hill Zone", "🍄 Mushroom Kingdom", "🌳 Vegetable Valley", "👑 Hyrule", "🏰 Wily's Castle", "🌌 Final Destination"}
 var takenlist []string
 var admissionslist = make(map[string]string)
@@ -69,7 +72,7 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 				return
 			}
 
-			if limit == 1 || limit <= 100 {
+			if limit == 1 || limit >= 100 {
 				s.ChannelMessageSend(m.ChannelID, "The given User Limit parameter is either too large or too small for Discord to handle.")
 				return
 			}
@@ -211,12 +214,21 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 				admissionperms.Deny = 0
 
 				perms = append(perms, admissionperms)
+
+				// Set the permission bitset for the bot
+				botperms := new(discordgo.PermissionOverwrite)
+				botperms.ID = botrole
+				botperms.Type = "role"
+				botperms.Allow = 66061328
+				botperms.Deny = 0
+
+				perms = append(perms, botperms)
 			}
 
 			// Edit the room with the correct parameters
 			settings := new(discordgo.ChannelEdit)
 			settings.Position = 1
-			settings.ParentID = "437397061814714378"
+			settings.ParentID = catrooms
 			settings.Bitrate = bitrate * 1000
 			settings.UserLimit = limit
 			if perms != nil {
@@ -271,9 +283,23 @@ func CommandRooms(s *discordgo.Session, m *discordgo.MessageCreate) {
 					}
 				}
 
-				// Get access to the room we found a password for
 				if room != "" {
 
+					// Make sure the user isn't already in a room
+					member, err := s.GuildMember(bullysquad, m.Author.ID)
+					if err != nil {
+						s.ChannelMessageSend(m.ChannelID, ":rotating_light: An unexpected error has occurred, and we cannot complete your request as promised. :rotating_light:")
+						return
+					}
+
+					for _, v := range member.Roles {
+						if v == admissionslist[room] {
+							s.ChannelMessageSend(m.ChannelID, "Looks like you are already in this room, did you mean to join another?")
+							return
+						}
+					}
+
+					// Get access to the room we found a password for
 					err = s.GuildMemberRoleAdd(bullysquad, m.Author.ID, admissionslist[room])
 					if err != nil {
 						s.ChannelMessageSend(m.ChannelID, ":rotating_light: An unexpected error has occurred, and we cannot complete your request as promised. :rotating_light:")
