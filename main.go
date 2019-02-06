@@ -1,28 +1,32 @@
 package main
 
 import (
-	"os"
-	"os/signal"
-	"syscall"
-
-	"github.com/Starz0r/na1-go/strings/concat"
-	"github.com/bwmarrin/discordgo"
+	"github.com/andersfylling/disgord"
 )
 
 const bullysquad = "67092563995136000"
 
-var auth = concat.Builder("Bot ", "")
-var discord, err = discordgo.New(auth)
+var discord disgord.Session
 
 func main() {
+	err := *new(error)
+
+	discord, err = disgord.NewSession(&disgord.Config{
+		BotToken: "",
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	// Initialize Commands
-	discord.AddHandler(CommandRooms)
+	discord.On(disgord.EventMessageCreate, CheckIfProperlyTagged)
 
 	// Open Websocket Connection
-	discord.Open()
+	err = discord.Connect()
+	if err != nil {
+		panic(err)
+	}
 
 	// Run the program indefinately
-	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
-	<-sc
+	discord.DisconnectOnInterrupt()
 }
