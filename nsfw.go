@@ -10,11 +10,8 @@ func CheckIfProperlyTagged(session disgord.Session, msg *disgord.MessageCreate) 
 	if channel.String() != "542672934368444426" {
 		return
 	}
-	if len(msg.Message.Attachments) == 0 {
-		session.DeleteMessage(channel, msg.Message.ID)
-	}
 
-	if msg.Message.SpoilerTagAllAttachments == false {
+	if msg.Message.SpoilerTagAllAttachments == false && len(msg.Message.Attachments) != 0 {
 		session.DeleteMessage(channel, msg.Message.ID)
 	}
 }
